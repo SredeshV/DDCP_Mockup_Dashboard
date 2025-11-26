@@ -1,0 +1,679 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Due-Date Change Prediction Dashboard</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+
+    <style>
+        /* Custom Dashboard Styles */
+        body { background-color: #f3f4f6; font-family: 'Inter', sans-serif; color: #1F2937; }
+        
+        /* Card Styling */
+        .card {
+            background: white;
+            border-radius: 0px;
+            border-top: 4px solid transparent;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            padding: 1rem;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+        }
+        .card-critical { border-top-color: #7D1920; }
+        .card-neutral { border-top-color: #d1d5db; }
+
+        /* Chart Containers */
+        .sparkline-container { height: 50px; width: 100%; margin-top: auto; }
+        .chart-container { position: relative; height: 250px; width: 100%; }
+        
+        /* Typography */
+        .kpi-value { font-size: 1.5rem; font-weight: 700; color: #1F2937; }
+        .kpi-label { font-size: 0.875rem; color: #6b7280; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; }
+        .text-brand-maroon { color: #7D1920; }
+        .bg-brand-maroon { background-color: #7D1920; }
+        .text-brand-brown { color: #92400E; }
+        
+        /* Insight Box Styling */
+        .insight-box {
+            background-color: #f9fafb;
+            border-top: 1px solid #e5e7eb;
+            padding: 12px;
+            margin-top: 15px;
+            font-size: 0.75rem;
+            color: #4b5563;
+            border-left: 3px solid #7D1920;
+        }
+        .insight-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 6px;
+            font-weight: 700;
+            color: #1f2937;
+            text-transform: uppercase;
+        }
+        
+        /* Metrics Styling */
+        .metric-row {
+            display: flex;
+            justify-content: space-between;
+            border-bottom: 1px dashed #e5e7eb;
+            padding-bottom: 2px;
+            margin-bottom: 4px;
+        }
+        .metric-label { font-weight: 600; color: #6b7280; }
+        .metric-val { font-weight: 600; color: #1f2937; }
+        .metric-val.bad { color: #7D1920; }
+        .metric-val.good { color: #047857; }
+        
+        /* Table & Utilities */
+        .delta-neg { color: #7D1920; font-size: 0.75rem; font-weight: 700; }
+        .table-container { overflow-x: auto; }
+        th { background-color: #1F2937; color: #ffffff; font-weight: 600; text-transform: uppercase; font-size: 0.75rem; padding: 0.75rem; text-align: left; }
+        td { padding: 0.75rem; border-bottom: 1px solid #e5e7eb; font-size: 0.875rem; color: #374151; }
+        tr:hover { background-color: #fdf2f2; cursor: pointer; }
+        .nav-scroll { overflow-x: auto; scrollbar-width: none; }
+        .nav-scroll::-webkit-scrollbar { display: none; }
+        .btn-outline { border: 1px solid #7D1920; color: #7D1920; transition: all 0.2s; }
+        .btn-outline:hover { background-color: #7D1920; color: white; }
+    </style>
+</head>
+<body class="text-gray-800">
+
+    <nav class="bg-white border-b border-gray-300 sticky top-0 z-50 px-6 py-3 flex items-center justify-between whitespace-nowrap nav-scroll shadow-sm">
+        <div class="flex items-center gap-4 mr-6">
+            <h1 class="text-xl font-bold text-gray-900 flex items-center tracking-tight">
+                <i class="fas fa-project-diagram text-brand-maroon mr-3"></i>
+                Due Date Change Prediction
+            </h1>
+            <span class="bg-[#7D1920] text-white text-xs font-semibold px-3 py-1 rounded-full">
+                Critical: System Delay >79%
+            </span>
+        </div>
+        
+        <div class="flex items-center gap-2">
+            <select class="bg-gray-50 border border-gray-300 text-gray-900 text-sm focus:border-red-900 block p-1.5 outline-none">
+                <option>Region: All</option>
+                <option>AMER</option>
+                <option>EMEA</option>
+                <option>APJ</option>
+            </select>
+            <select class="bg-gray-50 border border-gray-300 text-gray-900 text-sm focus:border-red-900 block p-1.5 outline-none">
+                <option>Period: Last 6 Months</option>
+                <option>Last 12 Months</option>
+                <option>YTD</option>
+            </select>
+            <select class="bg-gray-50 border border-gray-300 text-gray-900 text-sm focus:border-red-900 block p-1.5 outline-none">
+                <option>Commodity: All</option>
+                <option>Mech. Components</option>
+                <option>Electronics</option>
+                <option>Displays</option>
+                <option>Motherboards</option>
+                <option>Processors</option>
+            </select>
+            <select class="bg-gray-50 border border-gray-300 text-gray-900 text-sm focus:border-red-900 block p-1.5 outline-none">
+                <option>Planner: All</option>
+                <option>PG-Mech-01</option>
+                <option>PG-Elec-01</option>
+            </select>
+
+            <div class="text-xs text-gray-500 text-right mx-2 border-l pl-3 border-gray-300">
+                <div class="font-bold text-brand-maroon">Daily Refresh</div>
+                <div>08:00 AM</div>
+            </div>
+            <button class="text-gray-400 hover:text-brand-maroon p-1 transition-colors"><i class="fas fa-file-export fa-lg"></i></button>
+        </div>
+    </nav>
+
+    <main class="p-6 max-w-8xl mx-auto space-y-6">
+
+        <section class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            
+            <div class="card card-critical">
+                <div class="flex justify-between">
+                    <div class="kpi-label">System-Wide Delay Rate</div>
+                    <span class="delta-neg"><i class="fas fa-arrow-up"></i> 5.2% MoM</span>
+                </div>
+                <div class="kpi-value">80.1%</div>
+                <div class="sparkline-container"><canvas id="spark1"></canvas></div>
+            </div>
+
+            <div class="card card-neutral">
+                <div class="flex justify-between">
+                    <div class="kpi-label">Total Cost Burden</div>
+                    <span class="delta-neg"><i class="fas fa-arrow-up"></i> High Risk</span>
+                </div>
+                <div class="kpi-value">$319.6M</div>
+                <div class="sparkline-container"><canvas id="spark2"></canvas></div>
+            </div>
+
+            <div class="card card-neutral">
+                <div class="flex justify-between">
+                    <div class="kpi-label">Critical Commodity</div>
+                    <span class="delta-neg">CON_PALM_A</span>
+                </div>
+                <div class="kpi-value">94% <span class="text-xs text-gray-500 font-normal">Delay Rate</span></div>
+                <div class="text-xs text-gray-500 mt-1">
+                    <span class="font-bold text-brand-maroon">Highest Failure Rate</span> (EMEA)
+                </div>
+                <div class="sparkline-container"><canvas id="spark3"></canvas></div>
+            </div>
+            
+            <div class="card card-critical">
+                <div class="flex justify-between">
+                    <div class="kpi-label">Volume Impact</div>
+                    <span class="delta-neg">Total Delays</span>
+                </div>
+                <div class="kpi-value">1.2M <span class="text-xs text-gray-500 font-normal">Units</span></div>
+                <div class="sparkline-container"><canvas id="spark6"></canvas></div>
+            </div>
+            
+            <div class="card card-neutral">
+                <div class="flex justify-between">
+                    <div class="kpi-label">Supplier Concentration</div>
+                    <span class="delta-neg">Critical</span>
+                </div>
+                <div class="kpi-value">G00021 <span class="text-xs font-normal text-gray-500">(APJ)</span></div>
+                <div class="text-xs text-brand-maroon font-bold mt-1">Holds 56% of Total Orders</div>
+                <div class="sparkline-container"><canvas id="spark4"></canvas></div>
+            </div>
+
+            <div class="card card-neutral">
+                <div class="flex justify-between">
+                    <div class="kpi-label">Cost Reduction</div>
+                    <span class="text-brand-maroon text-xs font-bold">Target: 60% Delay</span>
+                </div>
+                <div class="kpi-value">$63.9M</div>
+                <div class="w-full bg-gray-200 h-1.5 mt-2">
+                  <div class="bg-[#7D1920] h-1.5" style="width: 35%"></div>
+                </div>
+                <div class="text-xs text-gray-500 mt-2">Potential annual savings</div>
+            </div>
+
+            <div class="card card-critical">
+                <div class="flex justify-between">
+                    <div class="kpi-label">High Risk Orders</div>
+                    <span class="delta-neg">Escalate</span>
+                </div>
+                <div class="kpi-value text-brand-maroon">4,120</div>
+                <div class="text-xs text-gray-500">Predicted to be Delayed</div>
+            </div>
+
+            <div class="card card-neutral">
+                <div class="flex justify-between">
+                    <div class="kpi-label">Avg Unit Cost (APJ)</div>
+                </div>
+                <div class="flex items-baseline gap-2">
+                    <div class="kpi-value">$473</div>
+                    <span class="text-sm text-brand-maroon">Highest Region</span>
+                </div>
+                <div class="text-xs text-gray-500 mt-1">
+                    Peak: <span class="font-bold text-gray-800">ESG_MEMORY ($1,243)</span>
+                </div>
+                <div class="sparkline-container"><canvas id="spark5"></canvas></div>
+            </div>
+        </section>
+
+        <section class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div class="card">
+                <h3 class="font-bold text-gray-800 mb-4 border-b pb-2 border-gray-200">Monthly Sales & Delay Trend (FY 2022)</h3>
+                <div class="chart-container">
+                    <canvas id="salesTrendChart"></canvas>
+                </div>
+                <div class="insight-box">
+                    <div class="insight-header">Systemic Performance</div>
+                    <div class="metric-row"><span class="metric-label">System Delay Rate:</span> <span class="metric-val bad">80.1%</span></div>
+                    <div class="metric-row"><span class="metric-label">Worst Region (EMEA):</span> <span class="metric-val bad">82.0%</span></div>
+                    <div class="metric-row"><span class="metric-label">Root Cause:</span> <span class="metric-val">Mechanical parts</span></div>
+                </div>
+            </div>
+
+            <div class="card">
+                <h3 class="font-bold text-gray-800 mb-4 border-b pb-2 border-gray-200">Top Commodity Delays (Volume)</h3>
+                <div class="chart-container">
+                    <canvas id="commodityChart"></canvas>
+                </div>
+                <div class="insight-box">
+                    <div class="insight-header">Breakdown</div>
+                    <div class="metric-row"><span class="metric-label">Primary Bottleneck:</span> <span class="metric-val bad">CON_MECH2</span></div>
+                    <div class="metric-row"><span class="metric-label">Secondary Issue:</span> <span class="metric-val bad">CON_MECH</span></div>
+                    <div class="metric-row"><span class="metric-label">Supplier Saturation:</span> <span class="metric-val">G00021 (APJ)</span></div>
+                    <div class="metric-row"><span class="metric-label">Next Best Supplier:</span> <span class="metric-val">C0644</span></div>
+                </div>
+            </div>
+        </section>
+
+        <section class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div class="card">
+                <div class="flex justify-between items-center mb-4 border-b pb-2 border-gray-200">
+                    <h3 class="font-bold text-gray-800">Order Delays by Region</h3>
+                    <div class="text-xs text-brand-maroon font-bold border border-red-900 px-2 py-1 rounded">Alert: EMEA 82% Delay</div>
+                </div>
+                <div class="chart-container">
+                    <canvas id="regionalChart"></canvas>
+                </div>
+                <div class="insight-box">
+                    <div class="insight-header">Regional Disparity</div>
+                    <div class="metric-row">
+                        <span class="metric-label">AMER Delay:</span>
+                        <div class="text-right">
+                            <span class="metric-val bad">78.7%</span>
+                            <span class="text-xs text-gray-400 w-16 inline-block text-right">(Vol: 15k)</span>
+                        </div>
+                    </div>
+                    <div class="metric-row">
+                        <span class="metric-label">APJ Delay:</span>
+                        <div class="text-right">
+                            <span class="metric-val bad">79.3%</span>
+                            <span class="text-xs text-gray-400 w-16 inline-block text-right">(Vol: 14k)</span>
+                        </div>
+                    </div>
+                    <div class="metric-row">
+                        <span class="metric-label">EMEA Delay:</span>
+                        <div class="text-right">
+                            <span class="metric-val bad">82.0%</span>
+                            <span class="text-xs text-gray-400 w-16 inline-block text-right">(Vol: 5k)</span>
+                        </div>
+                    </div>
+                    <div class="metric-row">
+                        <span class="metric-label">Cost Burden (APJ):</span>
+                        <span class="metric-val bad">$147.1M</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <h3 class="font-bold text-gray-800 mb-4 border-b pb-2 border-gray-200">Supplier Reliability vs. Spend Risk</h3>
+                <p class="text-xs text-gray-500 mb-2 italic">Top right = Critical Risk (High Spend + High Delay)</p>
+                <div class="chart-container">
+                    <canvas id="supplierRiskChart"></canvas>
+                </div>
+                <div class="insight-box">
+                    <div class="insight-header">Concentration Risk</div>
+                    <div class="metric-row"><span class="metric-label">Crit. Risk (AMER):</span> <span class="metric-val bad">12960 ($33.4M)</span></div>
+                    <div class="metric-row"><span class="metric-label">Crit. Risk (APJ):</span> <span class="metric-val bad">G00021 ($18.6M)</span></div>
+                    <div class="metric-row"><span class="metric-label">Crit. Risk (EMEA):</span> <span class="metric-val bad">E1405 ($9.3M)</span></div>
+                </div>
+            </div>
+        </section>
+
+        <section class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div class="card">
+                <h3 class="font-bold text-gray-800 mb-4 border-b pb-2 border-gray-200">Sub-Commodity Performance (Delay %)</h3>
+                <div class="chart-container">
+                    <canvas id="plannerChart"></canvas>
+                </div>
+                <div class="insight-box">
+                    <div class="insight-header">Component Instability</div>
+                    <div class="metric-row">
+                        <span class="metric-label">CON_PALM_A:</span>
+                        <div class="text-right">
+                            <span class="metric-val bad">94% Delay</span>
+                            <div class="text-xs text-gray-500 font-medium">EMEA / E1405</div>
+                        </div>
+                    </div>
+                    <div class="metric-row">
+                        <span class="metric-label">CON_MECH2:</span>
+                        <div class="text-right">
+                            <span class="metric-val bad">79% Delay</span>
+                            <div class="text-xs text-gray-500 font-medium">APJ / G00021</div>
+                        </div>
+                    </div>
+                    <div class="metric-row">
+                        <span class="metric-label">LAT_MECH:</span>
+                        <div class="text-right">
+                            <span class="metric-val bad">78% Delay</span>
+                            <div class="text-xs text-gray-500 font-medium">AMER / 12960</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <h3 class="font-bold text-gray-800 mb-4 border-b pb-2 border-gray-200">Average Unit Cost by Region ($)</h3>
+                <div class="chart-container">
+                    <canvas id="costChart"></canvas>
+                </div>
+                <div class="insight-box">
+                    <div class="insight-header">Regional Cost Drivers</div>
+                    <div class="metric-row">
+                        <span class="metric-label">APJ:</span>
+                        <div class="text-right">
+                            <span class="metric-val bad">ESG_MEMORY ($1,243)</span>
+                            <div class="text-xs text-gray-500 font-medium">Sup: G00012</div>
+                        </div>
+                    </div>
+                    <div class="metric-row">
+                        <span class="metric-label">EMEA:</span>
+                        <div class="text-right">
+                            <span class="metric-val bad">CON_MBB_B ($820)</span>
+                            <div class="text-xs text-gray-500 font-medium">Sup: E1405</div>
+                        </div>
+                    </div>
+                    <div class="metric-row">
+                        <span class="metric-label">AMER:</span>
+                        <div class="text-right">
+                            <span class="metric-val bad">ESG_PROCS ($1,368)</span>
+                            <div class="text-xs text-gray-500 font-medium">Sup: 12960</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div class="card lg:col-span-1">
+                <h3 class="font-bold text-gray-800 mb-4 border-b pb-2 border-gray-200">Top Buyers: Spend vs Volume</h3>
+                <div class="chart-container">
+                    <canvas id="buyerGroupedChart"></canvas>
+                </div>
+                <div class="insight-box">
+                    <div class="insight-header">Client Impact Analysis</div>
+                    <div class="metric-row"><span class="metric-label">Client S001 (APJ):</span> <span class="metric-val">Risk: LCD/Mech</span></div>
+                    <div class="metric-row"><span class="metric-label">Client S8 (APJ):</span> <span class="metric-val">Risk: Keyboard/Mech</span></div>
+                    <div class="metric-row"><span class="metric-label">Client S002:</span> <span class="metric-val">Risk: MBB/Mech</span></div>
+                </div>
+            </div>
+
+            <div class="card lg:col-span-2">
+                <div class="flex justify-between items-center mb-4 border-b pb-2 border-gray-200">
+                    <h3 class="font-bold text-gray-800">High Risk Open Orders</h3>
+                    <div class="flex gap-2">
+                        <button class="bg-gray-800 text-white hover:bg-gray-900 px-3 py-1 rounded text-xs uppercase">Export</button>
+                    </div>
+                </div>
+                <div class="table-container">
+                    <table class="w-full">
+                        <thead>
+                            <tr>
+                                <th>Impact</th>
+                                <th>PO Number</th>
+                                <th>Region</th>
+                                <th>Supplier</th>
+                                <th>Commodity</th>
+                                <th>Value</th>
+                                <th>Status</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><span class="bg-[#7D1920] text-white text-xs font-bold px-2 py-1 rounded">CRITICAL</span></td>
+                                <td>PO-9981</td>
+                                <td>APJ</td>
+                                <td>G00021</td>
+                                <td>CON_MECH2</td>
+                                <td>$12,500</td>
+                                <td class="text-brand-maroon font-bold">Delay Pred.</td>
+                                <td><button class="btn-outline px-2 py-1 rounded text-xs font-bold">QUALIFY ALT</button></td>
+                            </tr>
+                            <tr>
+                                <td><span class="bg-[#7D1920] text-white text-xs font-bold px-2 py-1 rounded">CRITICAL</span></td>
+                                <td>PO-7721</td>
+                                <td>AMER</td>
+                                <td>12960</td>
+                                <td>LAT_MECH</td>
+                                <td>$45,200</td>
+                                <td class="text-brand-maroon font-bold">Delay Pred.</td>
+                                <td><button class="btn-outline px-2 py-1 rounded text-xs font-bold">QUALIFY ALT</button></td>
+                            </tr>
+                            <tr>
+                                <td><span class="bg-[#92400E] text-white text-xs font-bold px-2 py-1 rounded">High</span></td>
+                                <td>PO-3321</td>
+                                <td>EMEA</td>
+                                <td>E1405</td>
+                                <td>CON_PALM_A</td>
+                                <td>$8,100</td>
+                                <td class="text-brand-maroon font-bold">Delay Pred.</td>
+                                <td><button class="text-gray-500 hover:text-black text-xs font-bold">AUDIT CAP.</button></td>
+                            </tr>
+                            <tr>
+                                <td><span class="bg-[#92400E] text-white text-xs font-bold px-2 py-1 rounded">Medium</span></td>
+                                <td>PO-4122</td>
+                                <td>APJ</td>
+                                <td>G00012</td>
+                                <td>ESG_MEM</td>
+                                <td>$7,400</td>
+                                <td class="text-brand-maroon font-bold">Delay Pred.</td>
+                                <td><button class="text-gray-500 hover:text-black text-xs font-bold">REVIEW</button></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <script>
+        // Config and Colors
+        const BRAND_MAROON = '#7D1920'; 
+        const BRAND_BLACK = '#1F2937';
+        const BRAND_BROWN = '#92400E';
+        const BRAND_GRAY = '#D1D5DB';
+        const BRAND_GREEN = '#047857';
+
+        const commonOptions = { 
+            responsive: true, 
+            maintainAspectRatio: false, 
+            plugins: { legend: { position: 'bottom', labels: { usePointStyle: true } } } 
+        };
+        
+        const sparkOptions = { 
+            responsive: true, 
+            maintainAspectRatio: false, 
+            plugins: { legend: { display: false }, tooltip: { enabled: false } }, 
+            scales: { x: { display: false }, y: { display: false } } 
+        };
+
+        // KPI Sparkline Charts
+        new Chart(document.getElementById('spark1'), {
+            type: 'line',
+            data: { labels: [1,2,3,4,5], datasets: [{ data: [78, 79, 81, 80, 80.1], borderColor: BRAND_MAROON, borderWidth: 2, fill: false, pointRadius: 0 }] },
+            options: sparkOptions
+        });
+
+        new Chart(document.getElementById('spark2'), {
+            type: 'bar',
+            data: { labels: [1,2,3,4,5], datasets: [{ data: [300, 310, 315, 318, 319.6], backgroundColor: BRAND_MAROON }] },
+            options: sparkOptions
+        });
+
+        new Chart(document.getElementById('spark3'), {
+            type: 'line',
+            data: { labels: [1,2,3,4,5], datasets: [{ data: [65, 66, 67, 68, 72], borderColor: BRAND_MAROON, borderWidth: 2, fill: true, backgroundColor: 'rgba(125, 25, 32, 0.2)', pointRadius: 0 }] },
+            options: sparkOptions
+        });
+
+        new Chart(document.getElementById('spark4'), {
+            type: 'bar',
+            data: { labels: [1,2,3], datasets: [{ data: [10, 20, 33.4], backgroundColor: [BRAND_GRAY, BRAND_BROWN, BRAND_MAROON] }] },
+            options: sparkOptions
+        });
+
+        new Chart(document.getElementById('spark5'), {
+            type: 'line',
+            data: { labels: [1,2,3,4,5], datasets: [{ data: [450, 460, 465, 470, 473], borderColor: BRAND_MAROON, borderWidth: 2, fill: false, pointRadius: 0 }] },
+            options: sparkOptions
+        });
+
+        new Chart(document.getElementById('spark6'), {
+            type: 'line',
+            data: { labels: [1,2,3,4,5], datasets: [{ data: [1.0, 1.1, 1.1, 1.2, 1.2], borderColor: BRAND_MAROON, borderWidth: 2, fill: false, pointRadius: 0 }] },
+            options: sparkOptions
+        });
+
+        // Sales Trend Bar Chart
+        new Chart(document.getElementById('salesTrendChart'), {
+            type: 'bar',
+            data: {
+                labels: ['Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov'],
+                datasets: [
+                    { label: 'Order Volume', data: [12000, 14500, 13000, 15000, 16000, 18000], backgroundColor: BRAND_GRAY, order: 2 },
+                    { label: 'Delay Rate %', data: [78, 79, 78.5, 80, 81, 82], borderColor: BRAND_MAROON, type: 'line', order: 1, yAxisID: 'y1' }
+                ]
+            },
+            options: {
+                ...commonOptions,
+                scales: {
+                    y: { title: {display: true, text: 'Volume'} },
+                    y1: { position: 'right', min: 70, max: 90, title: {display: true, text: 'Delay %'}, grid: {drawOnChartArea: false} }
+                }
+            }
+        });
+
+        // Commodity Horizontal Bar
+        new Chart(document.getElementById('commodityChart'), {
+            type: 'bar',
+            data: {
+                labels: ['CON_MECH2', 'CON_MECH', 'LAT_MECH', 'CON_KYBD', 'ESG_MEMORY'],
+                datasets: [{
+                    label: 'Delayed Orders',
+                    data: [1529, 1215, 1129, 800, 400],
+                    backgroundColor: [BRAND_MAROON, BRAND_MAROON, BRAND_MAROON, BRAND_BLACK, BRAND_BROWN]
+                }]
+            },
+            options: { ...commonOptions, indexAxis: 'y' }
+        });
+
+        // Regional Stacked Bar
+        new Chart(document.getElementById('regionalChart'), {
+            type: 'bar',
+            data: {
+                labels: ['AMER', 'APJ', 'EMEA'],
+                datasets: [
+                    { label: 'Delayed', data: [15265, 14000, 5000], backgroundColor: BRAND_MAROON },
+                    { label: 'On-Time', data: [4141, 3800, 1000], backgroundColor: BRAND_BLACK }
+                ]
+            },
+            options: { ...commonOptions, scales: { x: { stacked: true }, y: { stacked: true } } }
+        });
+
+        // Supplier Risk Scatter
+        new Chart(document.getElementById('supplierRiskChart'), {
+            type: 'scatter',
+            data: {
+                datasets: [{
+                    label: 'Suppliers',
+                    data: [
+                        {x: 33.4, y: 78.7, label: '12960 (AMER)', risk: 'Critical'},
+                        {x: 18.6, y: 85.0, label: 'G00021 (APJ)', risk: 'Critical'},  
+                        {x: 9.3,  y: 82.0, label: 'E1405 (EMEA)', risk: 'Critical'},
+                        {x: 25.0, y: 79.0, label: 'G00012 (APJ)', risk: 'Critical'},
+                        {x: 5.0,  y: 40.0, label: 'C0644 (APJ)', risk: 'Low'},        
+                        {x: 8.0,  y: 20.0, label: 'SV0070 (AMER)', risk: 'Low'},
+                        {x: 4.5,  y: 35.0, label: 'E2514 (EMEA)', risk: 'Low'},
+                        {x: 6.2,  y: 42.0, label: 'C1858 (AMER)', risk: 'Low'}
+                    ],
+                    backgroundColor: function(ctx) {
+                        if(!ctx.raw) return;
+                        if(ctx.raw.risk === 'Critical') return BRAND_MAROON;
+                        if(ctx.raw.risk === 'Low') return BRAND_GREEN;
+                        return BRAND_BROWN;
+                    },
+                    pointRadius: function(ctx) {
+                        return ctx.raw ? Math.sqrt(ctx.raw.x) * 4 : 5;
+                    },
+                    hoverRadius: function(ctx) {
+                         return ctx.raw ? (Math.sqrt(ctx.raw.x) * 4) + 2 : 7;
+                    }
+                }]
+            },
+            options: {
+                ...commonOptions,
+                scales: {
+                    x: { title: {display: true, text: 'Spend ($M)'}, min: 0 },
+                    y: { title: {display: true, text: 'Delay Rate (%)'}, min: 0, max: 100 }
+                },
+                plugins: {
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                return [
+                                    context.raw.label,
+                                    'Spend: $' + context.raw.x + 'M',
+                                    'Delay: ' + context.raw.y + '%'
+                                ];
+                            }
+                        }
+                    }
+                }
+            }
+        });
+
+        // Sub-Commodity Performance
+        new Chart(document.getElementById('plannerChart'), {
+            type: 'bar',
+            data: {
+                labels: ['CON_PALM_A', 'CON_MECH2', 'LAT_MECH', 'CON_KYBD (EMEA)', 'ESG_PROCS'],
+                datasets: [{
+                    label: 'Delay Rate %',
+                    data: [94, 79, 78, 77, 65],
+                    backgroundColor: [BRAND_MAROON, BRAND_MAROON, BRAND_MAROON, '#922B21', BRAND_BROWN]
+                }]
+            },
+            options: { ...commonOptions, scales: { y: { max: 100 } } }
+        });
+
+        // Average Unit Cost
+        new Chart(document.getElementById('costChart'), {
+            type: 'bar',
+            data: {
+                labels: ['APJ', 'EMEA', 'AMER'],
+                datasets: [{
+                    label: 'Avg Unit Cost ($)',
+                    data: [473.34, 410.20, 339.30],
+                    backgroundColor: [BRAND_MAROON, BRAND_BROWN, BRAND_BLACK]
+                }]
+            },
+            options: {
+                ...commonOptions,
+                plugins: {
+                    tooltip: {
+                        callbacks: {
+                            afterBody: function(context) {
+                                const region = context[0].label;
+                                if(region === 'AMER') return ['High: ESG_PROCS', 'Low: COM_LCD_C'];
+                                if(region === 'APJ') return ['High: ESG_MEMORY', 'Low: MECH_SCREW'];
+                                if(region === 'EMEA') return ['High: CON_MBB_B', 'Low: CON_CABLE'];
+                            }
+                        }
+                    }
+                }
+            }
+        });
+
+        // Top Buyers Grouped Bar
+        new Chart(document.getElementById('buyerGroupedChart'), {
+            type: 'bar',
+            data: {
+                labels: ['Client S001', 'Client S064', 'Client S002', 'Client S8'],
+                datasets: [
+                    {
+                        label: 'Spend ($M)',
+                        data: [30.3, 27.0, 24.7, 16.6],
+                        backgroundColor: BRAND_MAROON,
+                        yAxisID: 'y'
+                    },
+                    {
+                        label: 'Volume (Orders)',
+                        data: [3673, 2086, 2878, 5148],
+                        backgroundColor: BRAND_GRAY,
+                        yAxisID: 'y1'
+                    }
+                ]
+            },
+            options: {
+                ...commonOptions,
+                scales: {
+                    y: { beginAtZero: true, position: 'left', title: {display: true, text: 'Spend ($M)'} },
+                    y1: { beginAtZero: true, position: 'right', title: {display: true, text: 'Volume'} }
+                }
+            }
+        });
+    </script>
+</body>
+</html>
